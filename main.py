@@ -485,7 +485,7 @@ def run():
 
                                 time.sleep(0.1)
 
-                            pbar.update(1)
+                                pbar.update(1)
 
 if __name__ == "__main__":
     run()
