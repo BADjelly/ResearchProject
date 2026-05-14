@@ -6,5 +6,37 @@
     "Belonging": 1,
     "Esteem": 1,
     "Self-actualization": 1
+  },
+  {
+    "profile_id": "safe_5",
+    "Physiological": 2,
+    "Safety": 5,
+    "Belonging": 1,
+    "Esteem": 1,
+    "Self-actualization": 1
+  },
+  {
+    "profile_id": "belong_5",
+    "Physiological": 1,
+    "Safety": 2,
+    "Belonging": 5,
+    "Esteem": 1,
+    "Self-actualization": 1
+  },
+  {
+    "profile_id": "esteem_5",
+    "Physiological": 1,
+    "Safety": 2,
+    "Belonging": 1,
+    "Esteem": 5,
+    "Self-actualization": 1
+  },
+  {
+    "profile_id": "act_5",
+    "Physiological": 1,
+    "Safety": 2,
+    "Belonging": 1,
+    "Esteem": 1,
+    "Self-actualization": 5
   }
 ]

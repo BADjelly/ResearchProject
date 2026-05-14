@@ -29,6 +29,17 @@ PROFILE_FILE = "res/profiles.json"
 
 OUTPUT_FILE = "results.csv"
 
+START_INDEX = 0
+END_INDEX = None   # None = until end
+
+# #Laptop:
+# START_INDEX = 0
+# END_INDEX = 5000
+
+# #Mac Mini:
+# START_INDEX = 5000
+# END_INDEX = None
+
 TEMPERATURE = 0.2
 
 SEED = 42
@@ -221,6 +232,7 @@ def init_csv():
         writer = csv.writer(f)
 
         writer.writerow([
+            "trial_index",
             "trial_id",
             "model",
             "scenario_index",
@@ -322,6 +334,8 @@ def run():
 
     print(f"\nTotal prompts: {total_prompts}")
 
+    global_prompt_index = 0
+
     with tqdm(
             total=total_prompts,
             initial=len(completed_trials),
@@ -367,6 +381,13 @@ def run():
                             repetition=rep
                         )
 
+                        if global_prompt_index < START_INDEX:
+                            global_prompt_index += 1
+                            continue
+
+                        if END_INDEX is not None and global_prompt_index >= END_INDEX:
+                            return
+
                         if trial_id not in completed_trials:
 
                             pbar.set_postfix({
@@ -390,6 +411,7 @@ def run():
                             choice = parse_choice(raw)
 
                             save_result([
+                                global_prompt_index,
                                 trial_id,
                                 model,
                                 s_idx,
@@ -409,6 +431,8 @@ def run():
 
                             pbar.update(1)
 
+                        global_prompt_index += 1
+
         # ==================================================
         # PHASE 2 — PROFILES
         # ==================================================
@@ -417,9 +441,9 @@ def run():
 
         for model in MODELS:
 
-            for s_idx, scenario in enumerate(scenarios):
+            for profile in profiles:
 
-                for profile in profiles:
+                for s_idx, scenario in enumerate(scenarios):
 
                     profile_id = profile[
                         "profile_id"
@@ -443,6 +467,13 @@ def run():
                                 prompt_order=order_name,
                                 repetition=rep
                             )
+
+                            if global_prompt_index < START_INDEX:
+                                global_prompt_index += 1
+                                continue
+
+                            if END_INDEX is not None and global_prompt_index >= END_INDEX:
+                                return
 
                             if trial_id not in completed_trials:
 
@@ -468,6 +499,7 @@ def run():
                                 choice = parse_choice(raw)
 
                                 save_result([
+                                    global_prompt_index,
                                     trial_id,
                                     model,
                                     s_idx,
@@ -486,6 +518,8 @@ def run():
                                 time.sleep(0.1)
 
                                 pbar.update(1)
+
+                            global_prompt_index += 1
 
 if __name__ == "__main__":
     run()
