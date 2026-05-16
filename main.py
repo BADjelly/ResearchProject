@@ -61,6 +61,20 @@ with open(PROFILE_FILE, "r", encoding="utf-8") as f:
 # PROMPT BUILDERS
 # ============================================================
 
+PHASE1_LAYOUTS = [
+    "scenario_options",
+    "options_scenario"
+]
+
+PHASE2_LAYOUTS = [
+    "profile_scenario_options",
+    "profile_options_scenario",
+    "scenario_profile_options",
+    "scenario_options_profile",
+    "options_profile_scenario",
+    "options_scenario_profile"
+]
+
 OPTION_KEYS = [
     "option_a_strong",
     "option_a_moderate",
@@ -88,22 +102,22 @@ def build_options_text(scenario):
 def build_profile_text(profile):
 
     return f"""
-Psychological profile (Maslow needs):
-
-Physiological: {profile['Physiological']}
-Safety: {profile['Safety']}
-Belonging: {profile['Belonging']}
-Esteem: {profile['Esteem']}
-Self-actualization: {profile['Self-actualization']}
-
-Higher values indicate stronger motivational pressure.
-""".strip()
+        Psychological profile (Maslow needs):
+        
+        Physiological: {profile['Physiological']}
+        Safety: {profile['Safety']}
+        Belonging: {profile['Belonging']}
+        Esteem: {profile['Esteem']}
+        Self-actualization: {profile['Self-actualization']}
+        
+        Higher values indicate stronger motivational pressure.
+        """.strip()
 
 
 def build_prompt(
         scenario,
         profile=None,
-        scenario_first=True):
+        layout=None):
 
     scenario_text = scenario["scenario_text"]
 
@@ -114,48 +128,54 @@ def build_prompt(
     if profile:
         profile_text = build_profile_text(profile)
 
-    if scenario_first:
+    sections = {
+        "profile": f"""
+            PSYCHOLOGICAL PROFILE:
+            
+            {profile_text}
+            """.strip(),
 
-        body = f"""
-SCENARIO:
+        "scenario": f"""
+            SCENARIO:
+            
+            {scenario_text}
+            """.strip(),
 
-{scenario_text}
+        "options": f"""
+            OPTIONS:
+            
+            {options_text}
+            """.strip()
+    }
 
-OPTIONS:
+    parts = []
 
-{options_text}
-"""
+    for section_name in layout.split("_"):
+        if section_name == "profile" and not profile:
+            continue
+        parts.append(sections[section_name])
 
-    else:
+    body = "\n\n".join(parts)
 
-        body = f"""
-OPTIONS:
-
-{options_text}
-
-SCENARIO:
-
-{scenario_text}
-"""
 
     prompt = f"""
-You are participating in a behavioural prediction study.
-
-Your task:
-
-Predict which action a human would most likely choose.
-
-Choose exactly one option:
-A, B, C, D, E, or F.
-
-Do not explain.
-
-Return only one letter.
-
-{profile_text}
-
-{body}
-"""
+        You are participating in a behavioural prediction study.
+        
+        Your task:
+        
+        Predict which action a human would most likely choose.
+        
+        Choose exactly one option:
+        A, B, C, D, E, or F.
+        
+        Do not explain.
+        
+        Return only one letter.
+        
+        {profile_text}
+        
+        {body}
+        """
 
     return prompt.strip()
 
@@ -175,6 +195,7 @@ def call_ollama(model, prompt):
         # no context passed
 
         "stream": False,
+        "thinking": False,
 
         "options": {
             "temperature": TEMPERATURE
@@ -364,13 +385,7 @@ def run():
 
                 for rep in range(REPETITIONS):
 
-                    for order in [True, False]:
-
-                        order_name = (
-                            "scenario_first"
-                            if order
-                            else "options_first"
-                        )
+                    for order_name in PHASE1_LAYOUTS:
 
                         trial_id = build_trial_id(
                             model=model,
@@ -400,7 +415,7 @@ def run():
                             prompt = build_prompt(
                                 scenario,
                                 profile=None,
-                                scenario_first=order
+                                layout=order_name
                             )
 
                             raw = call_ollama(
@@ -451,13 +466,7 @@ def run():
 
                     for rep in range(REPETITIONS):
 
-                        for order in [True, False]:
-
-                            order_name = (
-                                "scenario_first"
-                                if order
-                                else "options_first"
-                            )
+                        for order_name in PHASE2_LAYOUTS:
 
                             trial_id = build_trial_id(
                                 model=model,
@@ -488,7 +497,7 @@ def run():
                                 prompt = build_prompt(
                                     scenario,
                                     profile=profile,
-                                    scenario_first=order
+                                    layout=order_name
                                 )
 
                                 raw = call_ollama(
