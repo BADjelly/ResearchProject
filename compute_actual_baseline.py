@@ -63,6 +63,32 @@ def main():
     print(f"\nDone. {len(output_rows)} scenario(s) written to '{OUTPUT_FILE}'.", end="")
     if skipped:
         print(f" {len(skipped)} skipped: scenario_index in {skipped}.")
+        answer = input(
+            f"\nRemove skipped scenario(s) {skipped} (baseline=True rows only) "
+            f"from '{INPUT_FILE}'? [y/n] "
+        ).strip().lower()
+        if answer in ("y", "yes"):
+            skipped_set = set(skipped)
+            kept_rows = []
+            with open(INPUT_FILE, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    is_skipped_baseline = (
+                        row["scenario_index"].strip() in skipped_set
+                        and row["baseline"].strip() == "True"
+                    )
+                    if not is_skipped_baseline:
+                        kept_rows.append(row)
+
+            with open(INPUT_FILE, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(kept_rows)
+
+            removed = len([r for r in kept_rows if r not in kept_rows])  # for message
+            print(f"Removed baseline=True rows for scenario_index {skipped} from '{INPUT_FILE}'.")
+        else:
+            print("Input file left unchanged.")
     else:
         print()
 
