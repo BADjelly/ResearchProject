@@ -345,7 +345,7 @@ def run():
                     "\033[92m"
                     "{desc}: "
                     "{percentage:6.2f}%|"
-                    "{bar} "
+                    "{bar}"
                     "| {n_fmt}/{total_fmt} "
                     "[{elapsed}<{remaining}, {rate_fmt}]"
                     "\033[0m"
