@@ -3,16 +3,16 @@ import sys
 from collections import Counter
 
 INPUT_FILE = "results.csv"   # ← change to your input CSV path
-OUTPUT_FILE = "majority_results.csv"
+OUTPUT_FILE = "plurality_baseline_results.csv"
 
-def majority_vote(choices):
-    """Return the majority choice, or None if there's no clear majority."""
+def plurality_vote(choices):
+    """Return the plurality choice, or None if there's no clear plurality."""
     counts = Counter(choices)
     top_two = counts.most_common(2)
     if len(top_two) == 1:
         return top_two[0][0]  # Only one distinct value
     if top_two[0][1] > top_two[1][1]:
-        return top_two[0][0]  # Clear majority
+        return top_two[0][0]  # Clear plurality
     return None  # Tie
 
 def main():
@@ -40,12 +40,12 @@ def main():
 
     for scenario_index, rows in sorted(scenarios.items(), key=lambda x: int(x[0])):
         choices = [r["parsed_choice"].strip() for r in rows]
-        winner = majority_vote(choices)
+        winner = plurality_vote(choices)
 
         if winner is None:
             counts = Counter(choices)
             print(
-                f"No majority for scenario_index={scenario_index} "
+                f"No plurality for scenario_index={scenario_index} "
                 f"(choices: {dict(counts)}) — skipping."
             )
             skipped.append(scenario_index)
