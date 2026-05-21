@@ -5,6 +5,7 @@ import time
 import requests
 import csv
 import os
+import requests, base64
 from tqdm import tqdm
 from pathlib import Path
 
@@ -13,11 +14,19 @@ from pathlib import Path
 # CONFIG
 # ============================================================
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+
+headers = {
+  "Authorization": "Bearer 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",
+  "Accept": "application/json"
+}
+
+#OLLAMA_URL = "http://localhost:11434/api/generate"
 #OLLAMA_URL = "http://192.168.178.127:11434/api/generate" #iPhone
 
 MODELS = [
-    "gemma4:e2b",
+    "google/gemma-3n-e4b-it",
+    # "gemma4:e2b",
     # "gemma4:e4b",
     # "gemma4:26b",
 ]
@@ -42,8 +51,8 @@ END_INDEX = None   # None = until end
 
 TEMPERATURE = 0.2
 
-SEED = 42
-random.seed(SEED)
+# SEED = 42
+# random.seed(SEED)
 
 
 # ============================================================
@@ -164,34 +173,27 @@ Return only one letter.
 # OLLAMA
 # ============================================================
 
-def call_ollama(model, prompt):
-
+def call_nvidia(model, prompt):
     payload = {
         "model": model,
-        "prompt": prompt,
-
-        # important:
-        # no memory between calls
-        # no context passed
-
-        "stream": False,
-
-        "options": {
-            "temperature": TEMPERATURE
-        }
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 512,
+        "temperature": TEMPERATURE,
+        "top_p": 0.70,
+        "frequency_penalty": 0.00,
+        "presence_penalty": 0.00,
+        "stream": False
     }
 
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload,
-        timeout=300
-    )
+    response = requests.post(invoke_url, headers=headers, json=payload)
 
-    response.raise_for_status()
+    response.raise_for_status() # maybe needs to be deleted
 
     data = response.json()
 
-    text = data["response"].strip()
+    # print(data)
+
+    text = data["choices"][0]["message"]["content"].strip()
 
     return text
 
@@ -403,7 +405,7 @@ def run():
                                 scenario_first=order
                             )
 
-                            raw = call_ollama(
+                            raw = call_nvidia(
                                 model,
                                 prompt
                             )
@@ -491,7 +493,7 @@ def run():
                                     scenario_first=order
                                 )
 
-                                raw = call_ollama(
+                                raw = call_nvidia(
                                     model,
                                     prompt
                                 )
