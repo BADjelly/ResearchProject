@@ -245,17 +245,17 @@ def init_csv():
         ])
 
 
-def save_result(row):
-
-    with open(
-            OUTPUT_FILE,
-            "a",
-            newline="",
-            encoding="utf-8") as f:
-
-        writer = csv.writer(f)
-
-        writer.writerow(row)
+# def save_result(row):
+#
+#     with open(
+#             OUTPUT_FILE,
+#             "a",
+#             newline="",
+#             encoding="utf-8") as f:
+#
+#         writer = csv.writer(f)
+#
+#         writer.writerow(row)
 
 def calculate_total_prompts():
 
@@ -327,6 +327,9 @@ def load_completed_trials():
 def run():
 
     init_csv()
+
+    with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as out_f:
+        resultswriter = csv.writer(out_f)
 
     completed_trials = load_completed_trials()
 
@@ -410,7 +413,20 @@ def run():
 
                             choice = parse_choice(raw)
 
-                            save_result([
+                            # save_result([
+                            #     global_prompt_index,
+                            #     trial_id,
+                            #     model,
+                            #     s_idx,
+                            #     "",
+                            #     True,
+                            #     order_name,
+                            #     rep,
+                            #     raw,
+                            #     choice
+                            # ])
+
+                            resultswriter.writerow([
                                 global_prompt_index,
                                 trial_id,
                                 model,
@@ -498,7 +514,20 @@ def run():
 
                                 choice = parse_choice(raw)
 
-                                save_result([
+                                # save_result([
+                                #     global_prompt_index,
+                                #     trial_id,
+                                #     model,
+                                #     s_idx,
+                                #     profile_id,
+                                #     False,
+                                #     order_name,
+                                #     rep,
+                                #     raw,
+                                #     choice
+                                # ])
+
+                                resultswriter.writerow([
                                     global_prompt_index,
                                     trial_id,
                                     model,
