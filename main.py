@@ -5,6 +5,7 @@ import time
 import requests
 import csv
 import os
+import threading
 from tqdm import tqdm
 from pathlib import Path
 
@@ -13,8 +14,23 @@ from pathlib import Path
 # CONFIG
 # ============================================================
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+#OLLAMA_URL = "http://localhost:11434/api/generate"
 #OLLAMA_URL = "http://192.168.178.127:11434/api/generate" #iPhone
+
+OLLAMA_HOSTS = [
+    {
+        "name": "Laptop1",
+        "url": "http://localhost:11434/api/generate",
+    },
+    # {
+    #     "name": "Laptop2",
+    #     "url": "http://localhost:11434/api/generate",
+    # },
+    {
+        "name": "MacMini",
+        "url": "http://192.168.178.57:11434/api/generate",
+    },
+]
 
 MODELS = [
     "gemma4:e2b",
@@ -29,8 +45,8 @@ PROFILE_FILE = "res/profiles.json"
 
 OUTPUT_FILE = "results.csv"
 
-START_INDEX = 0
-END_INDEX = None   # None = until end
+# START_INDEX = 0
+# END_INDEX = None   # None = until end
 
 # #Laptop:
 # START_INDEX = 0
@@ -164,7 +180,7 @@ Return only one letter.
 # OLLAMA
 # ============================================================
 
-def call_ollama(model, prompt):
+def call_ollama(host, model, prompt):
 
     payload = {
         "model": model,
@@ -182,7 +198,7 @@ def call_ollama(model, prompt):
     }
 
     response = requests.post(
-        OLLAMA_URL,
+        host["url"],
         json=payload,
         timeout=300
     )
@@ -246,16 +262,7 @@ def init_csv():
 
 
 def save_result(row):
-
-    with open(
-            OUTPUT_FILE,
-            "a",
-            newline="",
-            encoding="utf-8") as f:
-
-        writer = csv.writer(f)
-
-        writer.writerow(row)
+    completed_buffer[row[0]] = row
 
 def calculate_total_prompts():
 
@@ -319,48 +326,132 @@ def load_completed_trials():
 
     return completed
 
+def load_processed_trial_indexes():
 
-# ============================================================
-# EXPERIMENT
-# ============================================================
+    completed = set()
 
-def run():
+    if not os.path.exists(OUTPUT_FILE):
+        return completed
 
-    init_csv()
+    with open(
+            OUTPUT_FILE,
+            "r",
+            encoding="utf-8") as f:
 
-    completed_trials = load_completed_trials()
+        reader = csv.DictReader(f)
 
-    total_prompts = calculate_total_prompts()
+        for row in reader:
+            completed.add(
+                int(row["trial_index"])
+            )
 
-    print(f"\nTotal prompts: {total_prompts}")
+    # print(f"Found {len(completed)} completed trial indexes.")
 
+    return completed
+
+
+trials_in_work_Lock = threading.Lock()
+trials_in_work = set()
+
+def worker(host): #running on each thread
     global_prompt_index = 0
 
-    with tqdm(
-            total=total_prompts,
-            initial=len(completed_trials),
-            desc="Experiment",
-            unit="prompt",
-            bar_format=(
-                    "\033[92m"
-                    "{desc}: "
-                    "{percentage:6.2f}%|"
-                    "{bar}"
-                    "| {n_fmt}/{total_fmt} "
-                    "[{elapsed}<{remaining}, {rate_fmt}]"
-                    "\033[0m"
-            )
-    ) as pbar:
+    # ==================================================
+    # PHASE 1 — BASELINE ONLY
+    # ==================================================
 
-        # ==================================================
-        # PHASE 1 — BASELINE ONLY
-        # ==================================================
+    print("\n[Thread " + host["name"] + "] Starting PHASE 1: BASELINE")
 
-        print("\nStarting PHASE 1: BASELINE")
+    for model in MODELS:
 
-        for model in MODELS:
+        for s_idx, scenario in enumerate(scenarios):
+
+            for rep in range(REPETITIONS):
+
+                for order in [True, False]:
+
+                    order_name = (
+                        "scenario_first"
+                        if order
+                        else "options_first"
+                    )
+
+                    trial_id = build_trial_id(
+                        model=model,
+                        scenario_index=s_idx,
+                        profile_id="",
+                        baseline=True,
+                        prompt_order=order_name,
+                        repetition=rep
+                    )
+
+                    trials_in_work_Lock.acquire()
+                    if trial_id not in completed_trials and trial_id not in trials_in_work:
+                        trials_in_work.add(
+                            trial_id
+                        )
+                        trials_in_work_Lock.release()
+                        # progress_bar.set_postfix({
+                        #     "phase": "baseline",
+                        #     "model": model,
+                        #     "scenario": s_idx,
+                        #     "rep": rep
+                        # })
+
+                        prompt = build_prompt(
+                            scenario,
+                            profile=None,
+                            scenario_first=order
+                        )
+
+                        raw = call_ollama(
+                            host,
+                            model,
+                            prompt
+                        )
+
+                        choice = parse_choice(raw)
+
+                        trials_in_work.remove(trial_id)
+
+                        completed_trials.add(trial_id)
+
+                        save_result([
+                            global_prompt_index,
+                            trial_id,
+                            model,
+                            s_idx,
+                            "",
+                            True,
+                            order_name,
+                            rep,
+                            raw,
+                            choice
+                        ])
+
+                        time.sleep(0.1)
+
+                        # progress_bar.update(1)
+                    else:
+                        trials_in_work_Lock.release()
+
+                    global_prompt_index = global_prompt_index + 1
+
+    # ==================================================
+    # PHASE 2 — PROFILES
+    # ==================================================
+
+    print("\n[Thread " + host["name"] + "] Starting PHASE 2: PSYCHOLOGICAL PROFILES")
+
+    for model in MODELS:
+
+        for profile in profiles:
 
             for s_idx, scenario in enumerate(scenarios):
+
+                profile_id = profile[
+                    "profile_id"
+                ]
 
                 for rep in range(REPETITIONS):
 
@@ -375,151 +466,136 @@ def run():
                         trial_id = build_trial_id(
                             model=model,
                             scenario_index=s_idx,
-                            profile_id="",
-                            baseline=True,
+                            profile_id=profile_id,
+                            baseline=False,
                             prompt_order=order_name,
                             repetition=rep
                         )
 
-                        if global_prompt_index < START_INDEX:
-                            global_prompt_index += 1
-                            continue
-
-                        if END_INDEX is not None and global_prompt_index >= END_INDEX:
-                            return
-
-                        if trial_id not in completed_trials:
-
-                            pbar.set_postfix({
-                                "phase": "baseline",
-                                "model": model,
-                                "scenario": s_idx,
-                                "rep": rep
-                            })
+                        trials_in_work_Lock.acquire()
+                        if trial_id not in completed_trials and trial_id not in trials_in_work:
+                            trials_in_work.add(
+                                trial_id
+                            )
+                            trials_in_work_Lock.release()
+                            # progress_bar.set_postfix({
+                            #     "phase": "profile",
+                            #     "model": model,
+                            #     "scenario": s_idx,
+                            #     "profile": profile_id,
+                            #     "rep": rep
+                            # })
 
                             prompt = build_prompt(
                                 scenario,
-                                profile=None,
+                                profile=profile,
                                 scenario_first=order
                             )
 
                             raw = call_ollama(
+                                host,
                                 model,
                                 prompt
                             )
 
                             choice = parse_choice(raw)
 
+                            trials_in_work.remove(trial_id)
+
+                            completed_trials.add(trial_id)
+
                             save_result([
                                 global_prompt_index,
                                 trial_id,
                                 model,
                                 s_idx,
-                                "",
-                                True,
+                                profile_id,
+                                False,
                                 order_name,
                                 rep,
                                 raw,
                                 choice
                             ])
 
-                            completed_trials.add(
-                                trial_id
-                            )
-
                             time.sleep(0.1)
 
-                            pbar.update(1)
+                            # progress_bar.update(1)
+                        else:
+                            trials_in_work_Lock.release()
 
-                        global_prompt_index += 1
+                        global_prompt_index = global_prompt_index + 1
 
-        # ==================================================
-        # PHASE 2 — PROFILES
-        # ==================================================
 
-        print("\nStarting PHASE 2: PSYCHOLOGICAL PROFILES")
+# ============================================================
+# EXPERIMENT
+# ============================================================
 
-        for model in MODELS:
+completed_buffer = {}
 
-            for profile in profiles:
+def run():
+    global completed_trials
 
-                for s_idx, scenario in enumerate(scenarios):
+    init_csv()
 
-                    profile_id = profile[
-                        "profile_id"
-                    ]
+    completed_trials = load_completed_trials()
 
-                    for rep in range(REPETITIONS):
+    processed_trial_indexes = load_processed_trial_indexes()
 
-                        for order in [True, False]:
+    total_prompts = calculate_total_prompts()
 
-                            order_name = (
-                                "scenario_first"
-                                if order
-                                else "options_first"
-                            )
+    print(f"\nTotal prompts: {total_prompts}")
 
-                            trial_id = build_trial_id(
-                                model=model,
-                                scenario_index=s_idx,
-                                profile_id=profile_id,
-                                baseline=False,
-                                prompt_order=order_name,
-                                repetition=rep
-                            )
+    # Start threads for each host
+    threads = []
+    for host in OLLAMA_HOSTS:
+        # Using `args` to pass positional arguments
+        t = threading.Thread(target=worker, args=(host,))
+        threads.append(t)
+        t.start()
 
-                            if global_prompt_index < START_INDEX:
-                                global_prompt_index += 1
-                                continue
+    with open(
+            OUTPUT_FILE,
+            "a",
+            newline="",
+            encoding="utf-8") as f:
 
-                            if END_INDEX is not None and global_prompt_index >= END_INDEX:
-                                return
+        writer = csv.writer(f)
 
-                            if trial_id not in completed_trials:
+        with tqdm(
+                total=total_prompts,
+                initial=len(completed_trials),
+                desc="Experiment",
+                unit="prompt",
+                bar_format=(
+                        "\033[92m"
+                        "{desc}: "
+                        "{percentage:6.2f}%|"
+                        "{bar}"
+                        "| {n_fmt}/{total_fmt} "
+                        "[{elapsed}<{remaining}, {rate_fmt}]"
+                        "\033[0m"
+                )
+        ) as progress_bar:
+            prev_completed_trials = len(completed_trials)
+            current_completed_trials = prev_completed_trials
+            next_write_index = 0
+            while next_write_index in processed_trial_indexes:
+                next_write_index += 1
+            while current_completed_trials < total_prompts:
+                progress_bar.update(current_completed_trials-prev_completed_trials)
+                prev_completed_trials = current_completed_trials
+                time.sleep(5)
+                current_completed_trials = len(completed_trials)
+                while next_write_index in completed_buffer:
+                    writer.writerow(completed_buffer[next_write_index])
+                    del completed_buffer[next_write_index]
+                    processed_trial_indexes.add(next_write_index)
+                    while next_write_index in processed_trial_indexes:
+                        next_write_index += 1
 
-                                pbar.set_postfix({
-                                    "phase": "profile",
-                                    "model": model,
-                                    "scenario": s_idx,
-                                    "profile": profile_id,
-                                    "rep": rep
-                                })
-
-                                prompt = build_prompt(
-                                    scenario,
-                                    profile=profile,
-                                    scenario_first=order
-                                )
-
-                                raw = call_ollama(
-                                    model,
-                                    prompt
-                                )
-
-                                choice = parse_choice(raw)
-
-                                save_result([
-                                    global_prompt_index,
-                                    trial_id,
-                                    model,
-                                    s_idx,
-                                    profile_id,
-                                    False,
-                                    order_name,
-                                    rep,
-                                    raw,
-                                    choice
-                                ])
-
-                                completed_trials.add(
-                                    trial_id
-                                )
-
-                                time.sleep(0.1)
-
-                                pbar.update(1)
-
-                            global_prompt_index += 1
+    # Wait for all threads to finish
+    for t in threads:
+        t.join()
 
 if __name__ == "__main__":
     run()
