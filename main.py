@@ -1,11 +1,8 @@
 import json
-import uuid
-import random
 import time
-import requests
 import csv
 import os
-import requests, base64
+import requests
 from tqdm import tqdm
 from pathlib import Path
 
@@ -26,6 +23,7 @@ headers = {
 
 MODELS = [
     "google/gemma-3n-e4b-it",
+    "google/gemma-3n-e2b-it",
     # "gemma4:e2b",
     # "gemma4:e4b",
     # "gemma4:26b",
@@ -170,7 +168,7 @@ Return only one letter.
 
 
 # ============================================================
-# OLLAMA
+# NVIDIA
 # ============================================================
 
 def call_nvidia(model, prompt):
@@ -196,6 +194,50 @@ def call_nvidia(model, prompt):
     text = data["choices"][0]["message"]["content"].strip()
 
     return text
+
+def call_nvidia_with_retry(model, prompt, max_retries=5, base_sleep=1.0):
+
+    for attempt in range(max_retries):
+
+        try:
+
+            return call_nvidia(model, prompt)
+
+        except requests.exceptions.HTTPError as e:
+
+            status = None
+
+            if e.response is not None:
+
+                status = e.response.status_code
+
+            # retry only on transient errors
+
+            if status in [429, 500, 502, 503, 504]:
+
+                sleep_time = base_sleep * (2 ** attempt)  # exponential backoff
+
+                print(f"[Retry {attempt+1}/{max_retries}] HTTP {status}. Sleeping {sleep_time:.1f}s...")
+
+                time.sleep(sleep_time)
+
+                continue
+
+            # non-retryable error
+
+            raise
+
+        except requests.exceptions.RequestException as e:
+
+            # network-level failure
+
+            sleep_time = base_sleep * (2 ** attempt)
+
+            print(f"[Retry {attempt+1}/{max_retries}] Network error: {e}. Sleeping {sleep_time:.1f}s...")
+
+            time.sleep(sleep_time)
+
+    raise RuntimeError("Max retries exceeded for NVIDIA API call")
 
 
 # ============================================================
@@ -330,9 +372,6 @@ def run():
 
     init_csv()
 
-    with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as out_f:
-        resultswriter = csv.writer(out_f)
-
     completed_trials = load_completed_trials()
 
     total_prompts = calculate_total_prompts()
@@ -357,115 +396,19 @@ def run():
             )
     ) as pbar:
 
-        # ==================================================
-        # PHASE 1 — BASELINE ONLY
-        # ==================================================
+        with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as out_f:
+            resultswriter = csv.writer(out_f)
 
-        print("\nStarting PHASE 1: BASELINE")
+            for model in MODELS:
 
-        for model in MODELS:
+                # ==================================================
+                # PHASE 1 — BASELINE ONLY
+                # ==================================================
 
-            for s_idx, scenario in enumerate(scenarios):
+                print("\nStarting PHASE 1: BASELINE")
 
-                for rep in range(REPETITIONS):
-
-                    for order in [True, False]:
-
-                        order_name = (
-                            "scenario_first"
-                            if order
-                            else "options_first"
-                        )
-
-                        trial_id = build_trial_id(
-                            model=model,
-                            scenario_index=s_idx,
-                            profile_id="",
-                            baseline=True,
-                            prompt_order=order_name,
-                            repetition=rep
-                        )
-
-                        if global_prompt_index < START_INDEX:
-                            global_prompt_index += 1
-                            continue
-
-                        if END_INDEX is not None and global_prompt_index >= END_INDEX:
-                            return
-
-                        if trial_id not in completed_trials:
-
-                            pbar.set_postfix({
-                                "phase": "baseline",
-                                "model": model,
-                                "scenario": s_idx,
-                                "rep": rep
-                            })
-
-                            prompt = build_prompt(
-                                scenario,
-                                profile=None,
-                                scenario_first=order
-                            )
-
-                            raw = call_nvidia(
-                                model,
-                                prompt
-                            )
-
-                            choice = parse_choice(raw)
-
-                            # save_result([
-                            #     global_prompt_index,
-                            #     trial_id,
-                            #     model,
-                            #     s_idx,
-                            #     "",
-                            #     True,
-                            #     order_name,
-                            #     rep,
-                            #     raw,
-                            #     choice
-                            # ])
-
-                            resultswriter.writerow([
-                                global_prompt_index,
-                                trial_id,
-                                model,
-                                s_idx,
-                                "",
-                                True,
-                                order_name,
-                                rep,
-                                raw,
-                                choice
-                            ])
-
-                            completed_trials.add(
-                                trial_id
-                            )
-
-                            time.sleep(0.1)
-
-                            pbar.update(1)
-
-                        global_prompt_index += 1
-
-        # ==================================================
-        # PHASE 2 — PROFILES
-        # ==================================================
-
-        print("\nStarting PHASE 2: PSYCHOLOGICAL PROFILES")
-
-        for model in MODELS:
-
-            for profile in profiles:
 
                 for s_idx, scenario in enumerate(scenarios):
-
-                    profile_id = profile[
-                        "profile_id"
-                    ]
 
                     for rep in range(REPETITIONS):
 
@@ -480,8 +423,8 @@ def run():
                             trial_id = build_trial_id(
                                 model=model,
                                 scenario_index=s_idx,
-                                profile_id=profile_id,
-                                baseline=False,
+                                profile_id="",
+                                baseline=True,
                                 prompt_order=order_name,
                                 repetition=rep
                             )
@@ -496,23 +439,19 @@ def run():
                             if trial_id not in completed_trials:
 
                                 pbar.set_postfix({
-                                    "phase": "profile",
+                                    "phase": "baseline",
                                     "model": model,
                                     "scenario": s_idx,
-                                    "profile": profile_id,
                                     "rep": rep
                                 })
 
                                 prompt = build_prompt(
                                     scenario,
-                                    profile=profile,
+                                    profile=None,
                                     scenario_first=order
                                 )
 
-                                raw = call_nvidia(
-                                    model,
-                                    prompt
-                                )
+                                raw = call_nvidia_with_retry(model, prompt)
 
                                 choice = parse_choice(raw)
 
@@ -521,8 +460,8 @@ def run():
                                 #     trial_id,
                                 #     model,
                                 #     s_idx,
-                                #     profile_id,
-                                #     False,
+                                #     "",
+                                #     True,
                                 #     order_name,
                                 #     rep,
                                 #     raw,
@@ -534,8 +473,8 @@ def run():
                                     trial_id,
                                     model,
                                     s_idx,
-                                    profile_id,
-                                    False,
+                                    "",
+                                    True,
                                     order_name,
                                     rep,
                                     raw,
@@ -551,6 +490,102 @@ def run():
                                 pbar.update(1)
 
                             global_prompt_index += 1
+
+                # ==================================================
+                # PHASE 2 — PROFILES
+                # ==================================================
+
+                print("\nStarting PHASE 2: PSYCHOLOGICAL PROFILES")
+
+                for profile in profiles:
+
+                    for s_idx, scenario in enumerate(scenarios):
+
+                        profile_id = profile[
+                            "profile_id"
+                        ]
+
+                        for rep in range(REPETITIONS):
+
+                            for order in [True, False]:
+
+                                order_name = (
+                                    "scenario_first"
+                                    if order
+                                    else "options_first"
+                                )
+
+                                trial_id = build_trial_id(
+                                    model=model,
+                                    scenario_index=s_idx,
+                                    profile_id=profile_id,
+                                    baseline=False,
+                                    prompt_order=order_name,
+                                    repetition=rep
+                                )
+
+                                if global_prompt_index < START_INDEX:
+                                    global_prompt_index += 1
+                                    continue
+
+                                if END_INDEX is not None and global_prompt_index >= END_INDEX:
+                                    return
+
+                                if trial_id not in completed_trials:
+
+                                    pbar.set_postfix({
+                                        "phase": "profile",
+                                        "model": model,
+                                        "scenario": s_idx,
+                                        "profile": profile_id,
+                                        "rep": rep
+                                    })
+
+                                    prompt = build_prompt(
+                                        scenario,
+                                        profile=profile,
+                                        scenario_first=order
+                                    )
+
+                                    raw = call_nvidia_with_retry(model, prompt)
+
+                                    choice = parse_choice(raw)
+
+                                    # save_result([
+                                    #     global_prompt_index,
+                                    #     trial_id,
+                                    #     model,
+                                    #     s_idx,
+                                    #     profile_id,
+                                    #     False,
+                                    #     order_name,
+                                    #     rep,
+                                    #     raw,
+                                    #     choice
+                                    # ])
+
+                                    resultswriter.writerow([
+                                        global_prompt_index,
+                                        trial_id,
+                                        model,
+                                        s_idx,
+                                        profile_id,
+                                        False,
+                                        order_name,
+                                        rep,
+                                        raw,
+                                        choice
+                                    ])
+
+                                    completed_trials.add(
+                                        trial_id
+                                    )
+
+                                    time.sleep(0.1)
+
+                                    pbar.update(1)
+
+                                global_prompt_index += 1
 
 if __name__ == "__main__":
     run()
