@@ -68,6 +68,28 @@ with open(PROFILE_FILE, "r", encoding="utf-8") as f:
 # PROMPT BUILDERS
 # ============================================================
 
+PHASE1_LAYOUTS = [
+    "instructions_scenario_options",
+    "instructions_options_scenario",
+    "scenario_options_instructions",
+    "options_scenario_instructions"
+]
+
+PHASE2_LAYOUTS = [
+    "instructions_profile_scenario_options",
+    "instructions_profile_options_scenario",
+    "instructions_scenario_profile_options",
+    "instructions_scenario_options_profile",
+    "instructions_options_profile_scenario",
+    "instructions_options_scenario_profile",
+    "profile_scenario_options_instructions",
+    "profile_options_scenario_instructions",
+    "scenario_profile_options_instructions",
+    "scenario_options_profile_instructions",
+    "options_profile_scenario_instructions",
+    "options_scenario_profile_instructions"
+]
+
 OPTION_KEYS = [
     "option_a_strong",
     "option_a_moderate",
@@ -95,22 +117,22 @@ def build_options_text(scenario):
 def build_profile_text(profile):
 
     return f"""
-Psychological profile (Maslow needs):
-
-Physiological: {profile['Physiological']}
-Safety: {profile['Safety']}
-Belonging: {profile['Belonging']}
-Esteem: {profile['Esteem']}
-Self-actualization: {profile['Self-actualization']}
-
-Higher values indicate stronger motivational pressure.
-""".strip()
+        Psychological profile (Maslow needs):
+        
+        Physiological: {profile['Physiological']}
+        Safety: {profile['Safety']}
+        Belonging: {profile['Belonging']}
+        Esteem: {profile['Esteem']}
+        Self-actualization: {profile['Self-actualization']}
+        
+        Higher values indicate stronger motivational pressure.
+        """.strip()
 
 
 def build_prompt(
         scenario,
         profile=None,
-        scenario_first=True):
+        layout=None):
 
     scenario_text = scenario["scenario_text"]
 
@@ -121,48 +143,49 @@ def build_prompt(
     if profile:
         profile_text = build_profile_text(profile)
 
-    if scenario_first:
+    sections = {
+        "instructions": f"""
+            You are participating in a behavioural prediction study.
+        
+            Your task:
+            
+            Predict which action a human would most likely choose.
+            
+            Choose exactly one option:
+            A, B, C, D, E, or F.
+            
+            Do not explain.
+            
+            Return only one letter.
+            """.strip(),
 
-        body = f"""
-SCENARIO:
+        "profile": f"""
+            PSYCHOLOGICAL PROFILE:
+            
+            {profile_text}
+            """.strip(),
 
-{scenario_text}
+        "scenario": f"""
+            SCENARIO:
+            
+            {scenario_text}
+            """.strip(),
 
-OPTIONS:
+        "options": f"""
+            OPTIONS:
+            
+            {options_text}
+            """.strip()
+    }
 
-{options_text}
-"""
+    parts = []
 
-    else:
+    for section_name in layout.split("_"):
+        if section_name == "profile" and not profile:
+            continue
+        parts.append(sections[section_name])
 
-        body = f"""
-OPTIONS:
-
-{options_text}
-
-SCENARIO:
-
-{scenario_text}
-"""
-
-    prompt = f"""
-You are participating in a behavioural prediction study.
-
-Your task:
-
-Predict which action a human would most likely choose.
-
-Choose exactly one option:
-A, B, C, D, E, or F.
-
-Do not explain.
-
-Return only one letter.
-
-{profile_text}
-
-{body}
-"""
+    prompt = "".join(parts)
 
     return prompt.strip()
 
@@ -175,7 +198,7 @@ def call_nvidia(model, prompt):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512,
+        "max_tokens": 8, # 512 is maybe too high for max output tokens
         "temperature": TEMPERATURE,
         "top_p": 0.70,
         "frequency_penalty": 0.00,
@@ -412,13 +435,7 @@ def run():
 
                     for rep in range(REPETITIONS):
 
-                        for order in [True, False]:
-
-                            order_name = (
-                                "scenario_first"
-                                if order
-                                else "options_first"
-                            )
+                        for order_name in PHASE1_LAYOUTS:
 
                             trial_id = build_trial_id(
                                 model=model,
@@ -448,7 +465,7 @@ def run():
                                 prompt = build_prompt(
                                     scenario,
                                     profile=None,
-                                    scenario_first=order
+                                    layout=order_name
                                 )
 
                                 raw = call_nvidia_with_retry(model, prompt)
@@ -507,13 +524,7 @@ def run():
 
                         for rep in range(REPETITIONS):
 
-                            for order in [True, False]:
-
-                                order_name = (
-                                    "scenario_first"
-                                    if order
-                                    else "options_first"
-                                )
+                            for order_name in PHASE2_LAYOUTS:
 
                                 trial_id = build_trial_id(
                                     model=model,
@@ -544,7 +555,7 @@ def run():
                                     prompt = build_prompt(
                                         scenario,
                                         profile=profile,
-                                        scenario_first=order
+                                        layout=order_name
                                     )
 
                                     raw = call_nvidia_with_retry(model, prompt)
