@@ -330,19 +330,11 @@ def calculate_total_prompts():
     profile_count = len(profiles)
     model_count = len(MODELS)
 
-    prompt_orders = 2
+    phase1_total = model_count * scenario_count * REPETITIONS * len(PHASE1_LAYOUTS)
 
-    prompts_per_order = 1 + profile_count
-    prompts_per_repetition = prompt_orders * prompts_per_order
+    phase2_total = model_count * scenario_count * profile_count * REPETITIONS * len(PHASE2_LAYOUTS)
 
-    total = (
-        model_count
-        * scenario_count
-        * REPETITIONS
-        * prompts_per_repetition
-    )
-
-    return total
+    return phase1_total + phase2_total
 
 def build_trial_id(
         model,
