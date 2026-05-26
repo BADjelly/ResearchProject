@@ -185,7 +185,7 @@ def build_prompt(
             continue
         parts.append(sections[section_name])
 
-    prompt = "".join(parts)
+    prompt = "\n\n".join(parts)
 
     return prompt.strip()
 
