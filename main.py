@@ -206,7 +206,7 @@ def call_nvidia(model, prompt):
         "stream": False
     }
 
-    response = requests.post(invoke_url, headers=headers, json=payload)
+    response = requests.post(invoke_url, headers=headers, json=payload, timeout=(30, 120))
 
     response.raise_for_status() # maybe needs to be deleted
 
