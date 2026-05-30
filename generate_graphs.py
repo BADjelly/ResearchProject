@@ -113,69 +113,75 @@ heatmap_df = heatmap_df.sort_index()
 # PLOT
 # ============================================================
 
-plt.figure(figsize=(22, 8))
+fig, ax = plt.subplots(figsize=(28, 6))
 
-im = plt.imshow(
-    heatmap_df,
-    aspect="auto",
-    interpolation="nearest"
+mesh = ax.pcolormesh(
+
+    heatmap_df.values,
+
+    cmap="RdBu_r",
+
+    edgecolors="white",     # borders
+
+    linewidth=1.0           # padding thickness
+
 )
 
-# ============================================================
-# AXES
-# ============================================================
+ax.set_aspect("equal")
 
-plt.yticks(
-    range(len(heatmap_df.index)),
-    heatmap_df.index,
-    fontsize=10
-)
+# ticks centered in cells
 
-plt.xticks(
-    range(len(heatmap_df.columns)),
+ax.set_xticks(np.arange(len(heatmap_df.columns)) + 0.5)
+
+ax.set_yticks(np.arange(len(heatmap_df.index)) + 0.5)
+
+ax.set_xticklabels(
+
     heatmap_df.columns,
+
     rotation=90,
-    fontsize=8
+
+    fontsize=12,
+
+    fontweight="medium"
+
 )
 
-# ============================================================
-# COLORBAR
-# ============================================================
+ax.set_yticklabels(
 
-cbar = plt.colorbar(im)
+    heatmap_df.index,
+
+    fontsize=12,
+
+    fontweight="medium"
+
+)
+
+cbar = plt.colorbar(mesh)
 
 cbar.set_label(
-    "Choice Entropy\n(Behavioral Instability)",
+
+    "Behavioral Instability",
+
     rotation=270,
+
     labelpad=25
-)
 
-# ============================================================
-# LABELS
-# ============================================================
-
-plt.xlabel(
-    "56 Schwartz Values",
-    fontsize=12,
-    fontweight="bold"
-)
-
-plt.ylabel(
-    "Social Contexts",
-    fontsize=12,
-    fontweight="bold"
 )
 
 plt.title(
-    "Behavioral Instability Across Values and Social Contexts\n"
-    "(Baseline Condition)",
+
+    "Behavioral Instability Across Values and Social Contexts",
+
     fontsize=14,
+
     fontweight="bold"
+
 )
 
-# ============================================================
-# LAYOUT
-# ============================================================
+plt.xlabel("56 Schwartz Values")
+
+plt.ylabel("11 Social Contexts")
 
 plt.tight_layout()
 
@@ -184,9 +190,7 @@ plt.tight_layout()
 # ============================================================
 
 plt.savefig(
-    "baseline_entropy_heatmap.png",
+    "generated_graphs/baseline_entropy_heatmap.png",
     dpi=300,
     bbox_inches="tight"
 )
-
-plt.show()
