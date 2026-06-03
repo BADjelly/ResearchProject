@@ -38,5 +38,61 @@
     "Belonging": 1,
     "Esteem": 1,
     "Self-actualization": 5
+  },
+  {
+    "profile_id": "phys_5_act_5",
+    "Physiological": 5,
+    "Safety": 1,
+    "Belonging": 1,
+    "Esteem": 1,
+    "Self-actualization": 5
+  },
+  {
+    "profile_id": "safe_5_act_5",
+    "Physiological": 1,
+    "Safety": 5,
+    "Belonging": 1,
+    "Esteem": 1,
+    "Self-actualization": 5
+  },
+  {
+    "profile_id": "phys_4",
+    "Physiological": 4,
+    "Safety": 3,
+    "Belonging": 2,
+    "Esteem": 2,
+    "Self-actualization": 2
+  },
+  {
+    "profile_id": "safe_4",
+    "Physiological": 2,
+    "Safety": 4,
+    "Belonging": 3,
+    "Esteem": 2,
+    "Self-actualization": 2
+  },
+  {
+    "profile_id": "belong_4",
+    "Physiological": 2,
+    "Safety": 2,
+    "Belonging": 4,
+    "Esteem": 3,
+    "Self-actualization": 2
+  },
+  {
+    "profile_id": "esteem_4",
+    "Physiological": 2,
+    "Safety": 2,
+    "Belonging": 2,
+    "Esteem": 4,
+    "Self-actualization": 3
+  },
+  {
+    "profile_id": "act_4",
+    "Physiological": 2,
+    "Safety": 2,
+    "Belonging": 2,
+    "Esteem": 3,
+    "Self-actualization": 4
   }
 ]
