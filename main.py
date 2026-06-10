@@ -218,7 +218,7 @@ def call_nvidia(model, prompt):
 
     return text
 
-def call_nvidia_with_retry(model, prompt, max_retries=5, base_sleep=1.0):
+def call_nvidia_with_retry(model, prompt, max_retries=12, base_sleep=1.0):
 
     for attempt in range(max_retries):
 

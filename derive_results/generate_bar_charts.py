@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from fontTools.cffLib import width
+
 CHOICE_MAP = {
     'A': -2.5,
     'B': -1.5,
@@ -148,26 +150,67 @@ def compute_precision_gain(df):
     gains = [('Baseline', 0.0)] + sorted(gains, key=lambda x: x[0])
     return gains
 
-def plot_bar(data, ylabel, title, save_path, figsize=(10,6)):
-    labels, values = zip(*data)
+def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
+    model_names = list(data.keys())
+    n_models = len(model_names)
+
+    labels = [label for label, _ in data[model_names[0]]]
+
     x = np.arange(len(labels))
+
+    total_width = 0.8
+    bar_width = total_width / n_models
+
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
-    bars = ax.bar(x, values, color='skyblue')
+
+    for i, model_name in enumerate(model_names):
+        _, values = zip(*data[model_name])
+
+        offset = (
+            -total_width / 2
+            + bar_width / 2
+            + i * bar_width
+        )
+
+        bars = ax.bar(
+            x + offset,
+            values,
+            width=bar_width,
+            label=model_name
+        )
+
+        for bar in bars:
+            height = bar.get_height()
+
+            ax.annotate(
+                f'{height:.1f}',
+                xy=(
+                    bar.get_x() + bar.get_width() / 2,
+                    height
+                ),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha='center',
+                va='bottom',
+                fontsize=8
+            )
+
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=30)
+
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    # Add value labels
-    for bar in bars:
-        height = bar.get_height()
-        ax.annotate(f'{height:.3f}',
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 3),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom', fontsize=9)
+
+    ax.legend(
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1)
+    )
+
     plt.tight_layout()
+
     plt.savefig(save_path)
     plt.close()
+
     print(f"Saved: {save_path}")
 
 def plot_profile_summary(profile_id, alignment_rate, alignment_strength, alignment_strength_shift, avg_choice, mean_shift, save_path):
@@ -209,13 +252,20 @@ def plot_profile_summary(profile_id, alignment_rate, alignment_strength, alignme
 def main():
     ensure_dirs()
     df = load_data()
+    models = sorted(df["model"].unique())
 
     # 1. Alignment rate by profile
-    alignment_data = compute_alignment_rate(df)
+    alignment_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        alignment_data[model] = compute_alignment_rate(model_df)
     plot_bar(alignment_data, ylabel="Alignment Rate", title="Alignment Rate by Profile",
              save_path="../generated_bar_charts/by_metric/alignment_rate.png")
 
-    alignment_strength_data = compute_alignment_strength(df)
+    alignment_strength_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        alignment_strength_data[model] = compute_alignment_strength(model_df)
 
     plot_bar(
         alignment_strength_data,
@@ -224,9 +274,10 @@ def main():
         save_path='../generated_bar_charts/by_metric/alignment_strength.png'
     )
 
-    alignment_strength_shift_data = (
-        compute_alignment_strength_shift(df)
-    )
+    alignment_strength_shift_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        alignment_strength_shift_data[model] = compute_alignment_strength_shift(model_df)
 
     plot_bar(
         alignment_strength_shift_data,
@@ -236,17 +287,29 @@ def main():
     )
 
     # 2. Average choice value by profile
-    avg_choice_data = compute_average_choice_value(df)
+    avg_choice_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        avg_choice_data[model] = compute_average_choice_value(model_df)
+
     plot_bar(avg_choice_data, ylabel="Mean Choice Value", title="Average Choice Value by Profile",
              save_path="../generated_bar_charts/by_metric/average_choice_value.png")
 
     # 3. Mean behavioral shift from baseline by profile
-    shift_data = compute_behavioral_shift(df)
+    shift_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        shift_data[model] = compute_behavioral_shift(model_df)
+
     plot_bar(shift_data, ylabel="Mean Absolute Shift", title="Mean Behavioral Shift from Baseline",
              save_path="../generated_bar_charts/by_metric/mean_behavioral_shift.png")
 
     # 4. Precision gain summary by profile
-    precision_gain_data = compute_precision_gain(df)
+    precision_gain_data = {}
+    for model in models:
+        model_df = df[df["model"] == model].copy()
+        precision_gain_data[model] = compute_precision_gain(model_df)
+
     plot_bar(precision_gain_data, ylabel="Total Precision Gain", title="Precision Gain by Profile",
              save_path="../generated_bar_charts/by_metric/precision_gain.png")
 
