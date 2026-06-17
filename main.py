@@ -24,6 +24,7 @@ headers = {
 MODELS = [
     "google/gemma-3n-e4b-it",
     "google/gemma-3n-e2b-it",
+    # "google/gemma-4-31b-it",
     # "gemma4:e2b",
     # "gemma4:e4b",
     # "gemma4:26b",
@@ -116,17 +117,39 @@ def build_options_text(scenario):
 
 def build_profile_text(profile):
 
+    physiologicalValue = "LOW" if profile['Physiological'] < 3 else "MEDIUM" if profile['Physiological'] == 3 else "HIGH"
+    safetyValue = "LOW" if profile['Safety'] < 3 else "MEDIUM" if profile['Safety'] == 3 else "HIGH"
+    belongingValue = "LOW" if profile['Belonging'] < 3 else "MEDIUM" if profile['Belonging'] == 3 else "HIGH"
+    esteemValue = "LOW" if profile['Esteem'] < 3 else "MEDIUM" if profile['Esteem'] == 3 else "HIGH"
+    actualizationValue = "LOW" if profile['Self-actualization'] < 3 else "MEDIUM" if profile['Self-actualization'] == 3 else "HIGH"
+
     return f"""
-        Psychological profile (Maslow needs):
-        
-        Physiological: {profile['Physiological']}
-        Safety: {profile['Safety']}
-        Belonging: {profile['Belonging']}
-        Esteem: {profile['Esteem']}
-        Self-actualization: {profile['Self-actualization']}
-        
-        Higher values indicate stronger motivational pressure.
-        """.strip()
+            Psychological profile (Maslow needs):
+
+            Physiological: {physiologicalValue}
+            Safety: {safetyValue}
+            Belonging: {belongingValue}
+            Esteem: {esteemValue}
+            Self-actualization: {actualizationValue}
+
+            Needs can be either LOW, MEDIUM, or HIGH.
+            LOW means lowest motivational pressure.
+            MEDIUM means medium motivational pressure.
+            HIGH means strongest motivational pressure.
+            """.strip()
+
+    # return f"""
+    #     Psychological profile (Maslow needs):
+    #
+    #     Physiological: {physiologicalValue}
+    #     Safety: {safetyValue}
+    #     Belonging: {belongingValue}
+    #     Esteem: {esteemValue}
+    #     Self-actualization: {actualizationValue}
+    #
+    #     Higher values indicate stronger motivational pressure.
+    #     Values are from 1 to 5. 1 means lowest motivational pressure. 5 means strongest motivational pressure.
+    #     """.strip()
 
 
 def build_prompt(
@@ -494,7 +517,7 @@ def run():
                                     trial_id
                                 )
 
-                                time.sleep(0.1)
+                                #time.sleep(0.1)
 
                                 pbar.update(1)
 
@@ -584,7 +607,7 @@ def run():
                                         trial_id
                                     )
 
-                                    time.sleep(0.1)
+                                    #time.sleep(0.1)
 
                                     pbar.update(1)
 

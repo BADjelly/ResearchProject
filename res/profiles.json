@@ -94,5 +94,13 @@
     "Belonging": 2,
     "Esteem": 3,
     "Self-actualization": 4
+  },
+  {
+    "profile_id": "all_3",
+    "Physiological": 3,
+    "Safety": 3,
+    "Belonging": 3,
+    "Esteem": 3,
+    "Self-actualization": 3
   }
 ]
