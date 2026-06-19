@@ -8,8 +8,15 @@ from pathlib import Path
 # CONFIG
 # ============================================================
 
-RESULTS_FILE = "../results.csv"
+#RESULTS_FILE = "../results.csv"
+RESULTS_FILE = "../results1to5.csv"
+#RESULTS_FILE = "../resultsLOWtoHIGH.csv"
+
 SCENARIOS_FILE = "../res/scenarios_extended.json"
+
+#GENERATED_HEATMAPS_ROOT_DIR_NAME = "generated_heatmaps"
+GENERATED_HEATMAPS_ROOT_DIR_NAME = "generated_heatmaps_1_to_5"
+#GENERATED_HEATMAPS_ROOT_DIR_NAME = "generated_heatmaps_LOW_to_HIGH"
 
 CHOICE_MAP = {
     "A": -2.5,
@@ -119,7 +126,8 @@ def plot_heatmap(
         bottom_label,
         output_paths,
         vmin,
-        vmax):
+        vmax,
+        formula=None):
 
     fig, ax = plt.subplots(figsize=(28, 6))
 
@@ -191,6 +199,22 @@ def plot_heatmap(
     for spine in ax.spines.values():
         spine.set_visible(False)
 
+    if formula:
+        fig.text(
+            0.9,
+            0.0,
+            formula,
+            ha="right",
+            va="bottom",
+            fontsize=20,
+            bbox=dict(
+                facecolor="white",
+                alpha=0.85,
+                edgecolor="gray",
+                boxstyle="round,pad=0.3"
+            )
+        )
+
     plt.tight_layout()
 
     for output_path in output_paths:
@@ -251,11 +275,12 @@ for model in models:
         top_label="Highly\nVariable",
         bottom_label="Highly\nConsistent",
         output_paths=[
-            f"../generated_heatmaps/by_metric/baseline_stddev_heatmap_{safe_model}.png",
-            f"../generated_heatmaps/by_profile/baseline_stddev_heatmap_{safe_model}.png"
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/baseline_stddev_heatmap_{safe_model}.png",
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/baseline_stddev_heatmap_{safe_model}.png"
         ],
         vmin=STDMIN,
-        vmax=STDMAX
+        vmax=STDMAX,
+        formula=r"$\sigma(\mathrm{choice\_value})$"
     )
 
     #
@@ -275,11 +300,12 @@ for model in models:
         top_label="Strongly\nMisaligned",
         bottom_label="Strongly\nAligned",
         output_paths=[
-            f"../generated_heatmaps/by_metric/baseline_average_choice_heatmap_{safe_model}.png",
-            f"../generated_heatmaps/by_profile/baseline_average_choice_heatmap_{safe_model}.png"
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/baseline_average_choice_heatmap_{safe_model}.png",
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/baseline_average_choice_heatmap_{safe_model}.png"
         ],
         vmin=AVGMIN,
-        vmax=AVGMAX
+        vmax=AVGMAX,
+        formula=r"$\mathrm{mean}(\mathrm{choice\_value})$"
     )
 
     # ============================================================
@@ -313,11 +339,12 @@ for model in models:
         top_label="A ↔ F\nObserved",
         bottom_label="All Runs\nIdentical",
         output_paths=[
-            f"../generated_heatmaps/by_metric/baseline_range_heatmap_{safe_model}.png",
-            f"../generated_heatmaps/by_profile/baseline_range_heatmap_{safe_model}.png"
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/baseline_range_heatmap_{safe_model}.png",
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/baseline_range_heatmap_{safe_model}.png"
         ],
         vmin=RANGEMIN,
-        vmax=RANGEMAX
+        vmax=RANGEMAX,
+        formula=r"$\max(x)-\min(x)$"
     )
 
     # ============================================================
@@ -352,6 +379,234 @@ for model in models:
 
     merged = attach_metadata(merged, meta)
 
+    deviation_heatmap = build_mean_heatmap(
+        merged,
+        "delta"
+    )
+
+    plot_heatmap(
+        heatmap_df=deviation_heatmap,
+        title=f"All profiles: Deviation From Baseline",
+        colorbar_label="Deviation From Baseline",
+        top_label="Strongly\nMisaligned",
+        bottom_label="Strongly\nAligned",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/deviation_from_baseline/all_profiles_{safe_model}.png"
+        ],
+        vmin=VMIN,
+        vmax=VMAX,
+        formula=r"$\mathrm{mean}(\mathrm{profile})-\mathrm{mean}(\mathrm{baseline})$"
+    )
+
+    profile_choices = model_df[(model_df["baseline"] == False)]
+
+    std_heatmap = build_std_heatmap(
+        profile_choices,
+        "choice_value"
+    )
+
+    plot_heatmap(
+        heatmap_df=std_heatmap,
+        title=f"All profiles: Response Variability",
+        colorbar_label="Response Standard Deviation",
+        top_label="Highly\nVariable",
+        bottom_label="Highly\nConsistent",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/response_std/all_profiles_{safe_model}.png"
+        ],
+        vmin=STDMIN,
+        vmax=STDMAX,
+        formula=r"$\sigma(\mathrm{choice\_value})$"
+    )
+
+    profile_average_heatmap = build_mean_heatmap(
+        profile_choices,
+        "choice_value"
+    )
+
+    plot_heatmap(
+        heatmap_df=profile_average_heatmap,
+        title=f"All profiles: Average Choice",
+        colorbar_label="Average Choice Value",
+        top_label="Strongly\nMisaligned",
+        bottom_label="Strongly\nAligned",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/average_choice/all_profiles_{safe_model}.png"
+        ],
+        vmin=AVGMIN,
+        vmax=AVGMAX,
+        formula=r"$\mathrm{mean}(\mathrm{choice\_value})$"
+    )
+
+    # ============================================================
+    # PROFILE AVERAGE CHOICE SHIFT FROM BASELINE
+    # ============================================================
+
+    baseline_average_heatmap_aligned = baseline_average_heatmap.reindex(
+        index=profile_average_heatmap.index,
+        columns=profile_average_heatmap.columns
+    )
+
+    average_shift_heatmap = (
+            profile_average_heatmap
+            -
+            baseline_average_heatmap_aligned
+    )
+
+    plot_heatmap(
+        heatmap_df=average_shift_heatmap,
+        title=f"All profiles: Average Choice Shift From Baseline",
+        colorbar_label="Average Choice Shift",
+        top_label="More\nMisaligned",
+        bottom_label="More\nAligned",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/average_shift/all_profiles_{safe_model}.png"
+        ],
+        vmin=SHIFTMIN,
+        vmax=SHIFTMAX,
+        formula=r"$\mathrm{mean}(\mathrm{profile})-\mathrm{mean}(\mathrm{baseline})$"
+    )
+
+    profile_range_choices = profile_choices.copy()
+
+    profile_range_choices["range_choice_value"] = (
+        profile_range_choices["parsed_choice"]
+        .map(range_choice_map)
+    )
+
+    profile_range_heatmap = build_range_heatmap(
+        profile_range_choices,
+        "range_choice_value"
+    )
+
+    plot_heatmap(
+        heatmap_df=profile_range_heatmap,
+        title=f"All profiles: Response Range",
+        colorbar_label="Maximum Response Spread",
+        top_label="A ↔ F\nObserved",
+        bottom_label="All Runs\nIdentical",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/response_range/all_profiles_{safe_model}.png"
+        ],
+        vmin=RANGEMIN,
+        vmax=RANGEMAX,
+        formula=r"$\max(x)-\min(x)$"
+    )
+
+    baseline_std = (
+        model_df[model_df["baseline"] == True]
+        .groupby(
+            ["model", "scenario_index"]
+        )["choice_value"]
+        .std()
+        .reset_index(name="baseline_std")
+    )
+
+    profile_std = (
+        profile_choices
+        .groupby(
+            ["model", "profile_id", "scenario_index"]
+        )["choice_value"]
+        .std()
+        .reset_index(name="profile_std")
+    )
+
+    precision_df = profile_std.merge(
+        baseline_std,
+        on=["model", "scenario_index"],
+        how="left"
+    )
+
+
+    def precision_gain(row):
+
+        baseline = row["baseline_std"]
+        profile = row["profile_std"]
+
+        if pd.isna(baseline):
+            return np.nan
+
+        if baseline == 0:
+            return 0
+
+        return (baseline - profile) / baseline
+
+
+    precision_df["precision_gain"] = precision_df.apply(
+        precision_gain,
+        axis=1
+    )
+
+    precision_df = attach_metadata(
+        precision_df,
+        meta
+    )
+
+    THRESHOLD = 0.05
+
+    improved_count = (
+            precision_df["precision_gain"] > THRESHOLD
+    ).sum()
+
+    degraded_count = (
+            precision_df["precision_gain"] < -THRESHOLD
+    ).sum()
+
+    unchanged_count = (
+        precision_df["precision_gain"].between(
+            -THRESHOLD,
+            THRESHOLD
+        )
+    ).sum()
+
+    positive = precision_df[
+        "precision_gain"
+    ][precision_df["precision_gain"] > THRESHOLD]
+
+    negative = precision_df[
+        "precision_gain"
+    ][precision_df["precision_gain"] < -THRESHOLD]
+
+    total_improvement = positive.sum()
+    total_degradation = abs(negative.sum())
+    net_gain = total_improvement - total_degradation
+
+    precision_heatmap = (
+        precision_df
+        .groupby(
+            ["social_context", "schwarz_value"]
+        )["precision_gain"]
+        .mean()
+        .unstack()
+    )
+
+    precision_heatmap = precision_heatmap.sort_index()
+    precision_heatmap = precision_heatmap[
+        sorted(precision_heatmap.columns)
+    ]
+
+    plot_heatmap(
+        heatmap_df=precision_heatmap,
+        title=(
+            f"Profile All profiles: Precision Gain Relative to Baseline\n"
+            f"Improved: {improved_count}   "
+            f"Degraded: {degraded_count}   "
+            f"Unchanged: {unchanged_count}\n"
+            f"Total Improvement: {total_improvement:.2f}   "
+            f"Total Degradation: {total_degradation:.2f}   "
+            f"Net: {net_gain:.2f}"
+        ),
+        colorbar_label="Relative Reduction in Variability",
+        top_label="Much More\nPrecise",
+        bottom_label="Much Less\nPrecise",
+        output_paths=[
+            f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/precision_gain/all_profiles_{safe_model}.png"
+        ],
+        vmin=PRECISIONMIN,
+        vmax=PRECISIONMAX,
+        formula=r"$\frac{\sigma_{baseline}-\sigma_{profile}}{\sigma_{baseline}}$"
+    )
+
     profile_ids = sorted(merged["profile_id"].unique())
 
     for profile_id in profile_ids:
@@ -374,11 +629,12 @@ for model in models:
             top_label="Strongly\nMisaligned",
             bottom_label="Strongly\nAligned",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/deviation_from_baseline_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/deviation_from_baseline/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/deviation_from_baseline_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/deviation_from_baseline/{profile_id}_{safe_model}.png"
             ],
             vmin=VMIN,
-            vmax=VMAX
+            vmax=VMAX,
+            formula=r"$\mathrm{mean}(\mathrm{profile})-\mathrm{mean}(\mathrm{baseline})$"
         )
 
         profile_choices = model_df[
@@ -399,11 +655,12 @@ for model in models:
             top_label="Highly\nVariable",
             bottom_label="Highly\nConsistent",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/response_std_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/response_std/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/response_std_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/response_std/{profile_id}_{safe_model}.png"
             ],
             vmin=STDMIN,
-            vmax=STDMAX
+            vmax=STDMAX,
+            formula=r"$\sigma(\mathrm{choice\_value})$"
         )
 
         # ============================================================
@@ -422,11 +679,12 @@ for model in models:
             top_label="Strongly\nMisaligned",
             bottom_label="Strongly\nAligned",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/average_choice_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/average_choice/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/average_choice_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/average_choice/{profile_id}_{safe_model}.png"
             ],
             vmin=AVGMIN,
-            vmax=AVGMAX
+            vmax=AVGMAX,
+            formula=r"$\mathrm{mean}(\mathrm{choice\_value})$"
         )
 
         # ============================================================
@@ -451,11 +709,12 @@ for model in models:
             top_label="More\nMisaligned",
             bottom_label="More\nAligned",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/average_shift_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/average_shift/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/average_shift_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/average_shift/{profile_id}_{safe_model}.png"
             ],
             vmin=SHIFTMIN,
-            vmax=SHIFTMAX
+            vmax=SHIFTMAX,
+            formula=r"$\mathrm{mean}(\mathrm{profile})-\mathrm{mean}(\mathrm{baseline})$"
         )
 
         # ============================================================
@@ -481,11 +740,12 @@ for model in models:
             top_label="A ↔ F\nObserved",
             bottom_label="All Runs\nIdentical",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/response_range_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/response_range/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/response_range_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/response_range/{profile_id}_{safe_model}.png"
             ],
             vmin=RANGEMIN,
-            vmax=RANGEMAX
+            vmax=RANGEMAX,
+            formula=r"$\max(x)-\min(x)$"
         )
 
         # ============================================================
@@ -597,11 +857,12 @@ for model in models:
             top_label="Much More\nPrecise",
             bottom_label="Much Less\nPrecise",
             output_paths=[
-                f"../generated_heatmaps/by_profile/{profile_id}/precision_gain_{safe_model}.png",
-                f"../generated_heatmaps/by_metric/precision_gain/{profile_id}_{safe_model}.png"
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_profile/{profile_id}/precision_gain_{safe_model}.png",
+                f"../{GENERATED_HEATMAPS_ROOT_DIR_NAME}/by_metric/precision_gain/{profile_id}_{safe_model}.png"
             ],
             vmin=PRECISIONMIN,
-            vmax=PRECISIONMAX
+            vmax=PRECISIONMAX,
+            formula=r"$\frac{\sigma_{baseline}-\sigma_{profile}}{\sigma_{baseline}}$"
         )
 
 print("Done.")

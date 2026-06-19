@@ -14,6 +14,43 @@ CHOICE_MAP = {
     'F':  2.5,
 }
 
+PROFILE_ORDER = [
+    "Baseline",
+
+    #None,
+
+    "phys_5",
+    "safe_5",
+    "belong_5",
+    "esteem_5",
+    "act_5",
+
+    #None,
+
+    "phys_4",
+    "safe_4",
+    "belong_4",
+    "esteem_4",
+    "act_4",
+    "all_3",
+
+    #None,
+
+    "phys_5_act_5",
+    "safe_5_act_5",
+]
+
+def sort_profiles(profile_ids):
+    order_map = {
+        profile: i
+        for i, profile in enumerate(PROFILE_ORDER)
+    }
+
+    return sorted(
+        profile_ids,
+        key=lambda x: order_map.get(x, 999)
+    )
+
 def ensure_dirs():
     Path("../generated_bar_charts/by_metric").mkdir(parents=True, exist_ok=True)
     Path("../generated_bar_charts/by_profile").mkdir(parents=True, exist_ok=True)
@@ -30,7 +67,7 @@ def compute_alignment_rate(df):
     res = []
     baseline_rate = df[df['baseline'] == True]['aligned'].mean()
     res.append(('Baseline', baseline_rate))
-    for profile_id in sorted(df[df['baseline'] == False]['profile_id'].unique()):
+    for profile_id in sort_profiles(df[df['baseline'] == False]['profile_id'].unique()):
         sub = df[df['profile_id'] == profile_id]
         rate = sub['aligned'].mean()
         res.append((profile_id, rate))
@@ -53,7 +90,7 @@ def compute_alignment_strength(df):
 
     res.append(('Baseline', baseline_strength))
 
-    for profile_id in sorted(
+    for profile_id in sort_profiles(
         df[df['baseline'] == False]['profile_id'].unique()
     ):
 
@@ -98,7 +135,7 @@ def compute_average_choice_value(df):
     res = []
     baseline_mean = df[df['baseline'] == True]['choice_value'].mean()
     res.append(('Baseline', baseline_mean))
-    for profile_id in sorted(df[df['baseline'] == False]['profile_id'].unique()):
+    for profile_id in sort_profiles(df[df['baseline'] == False]['profile_id'].unique()):
         sub = df[df['profile_id'] == profile_id]
         mean_val = sub['choice_value'].mean()
         res.append((profile_id, mean_val))
@@ -110,7 +147,7 @@ def compute_behavioral_shift(df):
     baseline = df[df['baseline'] == True]
     baseline_means = baseline.groupby(['model', 'scenario_index'])['choice_value'].mean().reset_index()
     # For each profile, compute mean per (model, profile_id, scenario_index)
-    profiles = sorted(df[df['baseline'] == False]['profile_id'].unique())
+    profiles = sort_profiles(df[df['baseline'] == False]['profile_id'].unique())
     shifts = []
     for profile_id in profiles:
         prof = df[(df['baseline'] == False) & (df['profile_id'] == profile_id)]
@@ -127,7 +164,7 @@ def compute_precision_gain(df):
     df['choice_value'] = df['parsed_choice'].map(CHOICE_MAP)
     baseline = df[df['baseline'] == True]
     baseline_std = baseline.groupby(['model', 'scenario_index'])['choice_value'].std().reset_index()
-    profiles = sorted(df[df['baseline'] == False]['profile_id'].unique())
+    profiles = sort_profiles(df[df['baseline'] == False]['profile_id'].unique())
     gains = []
     for profile_id in profiles:
         prof = df[(df['baseline'] == False) & (df['profile_id'] == profile_id)]
@@ -213,7 +250,47 @@ def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
 
     print(f"Saved: {save_path}")
 
-def plot_profile_summary(profile_id, alignment_rate, alignment_strength, alignment_strength_shift, avg_choice, mean_shift, save_path):
+# def plot_profile_summary(profile_id, alignment_rate, alignment_strength, alignment_strength_shift, avg_choice, mean_shift, save_path):
+#     metrics = [
+#         'Alignment Rate',
+#         'Alignment Strength',
+#         'Strength Δ',
+#         'Mean Choice Value',
+#         'Mean Abs. Shift'
+#     ]
+#
+#     values = [
+#         alignment_rate,
+#         alignment_strength,
+#         alignment_strength_shift,
+#         avg_choice,
+#         mean_shift
+#     ]
+#     x = np.arange(len(metrics))
+#     fig, ax = plt.subplots(figsize=(6,4), dpi=300)
+#     bars = ax.bar(x, values, color=['#4e79a7', '#f28e2b', '#76b7b2'])
+#     ax.set_xticks(x)
+#     ax.set_xticklabels(metrics, rotation=15)
+#     ax.set_title(f'Profile: {profile_id} Summary')
+#     # Add value labels
+#     for bar in bars:
+#         height = bar.get_height()
+#         ax.annotate(f'{height:.3f}',
+#                     xy=(bar.get_x() + bar.get_width() / 2, height),
+#                     xytext=(0, 3),
+#                     textcoords="offset points",
+#                     ha='center', va='bottom', fontsize=9)
+#     plt.tight_layout()
+#     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+#     plt.savefig(save_path)
+#     plt.close()
+#     print(f"Saved: {save_path}")
+
+def plot_profile_summary(
+    profile_id,
+    data,
+    save_path
+):
     metrics = [
         'Alignment Rate',
         'Alignment Strength',
@@ -222,31 +299,82 @@ def plot_profile_summary(profile_id, alignment_rate, alignment_strength, alignme
         'Mean Abs. Shift'
     ]
 
-    values = [
-        alignment_rate,
-        alignment_strength,
-        alignment_strength_shift,
-        avg_choice,
-        mean_shift
-    ]
+    model_names = list(data.keys())
+
+    n_models = len(model_names)
+
     x = np.arange(len(metrics))
-    fig, ax = plt.subplots(figsize=(6,4), dpi=300)
-    bars = ax.bar(x, values, color=['#4e79a7', '#f28e2b', '#76b7b2'])
+
+    total_width = 0.8
+    bar_width = total_width / n_models
+
+    fig, ax = plt.subplots(
+        figsize=(10, 4),
+        dpi=300
+    )
+
+    for i, model_name in enumerate(model_names):
+
+        values = data[model_name]
+
+        offset = (
+            -total_width / 2
+            + bar_width / 2
+            + i * bar_width
+        )
+
+        bars = ax.bar(
+            x + offset,
+            values,
+            width=bar_width,
+            label=model_name
+        )
+
+        for bar in bars:
+
+            height = bar.get_height()
+
+            ax.annotate(
+                f'{height:.3f}',
+                xy=(
+                    bar.get_x()
+                    + bar.get_width() / 2,
+                    height
+                ),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha='center',
+                va='bottom',
+                fontsize=7
+            )
+
     ax.set_xticks(x)
-    ax.set_xticklabels(metrics, rotation=15)
-    ax.set_title(f'Profile: {profile_id} Summary')
-    # Add value labels
-    for bar in bars:
-        height = bar.get_height()
-        ax.annotate(f'{height:.3f}',
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 3),
-                    textcoords="offset points",
-                    ha='center', va='bottom', fontsize=9)
+
+    ax.set_xticklabels(
+        metrics,
+        rotation=15
+    )
+
+    ax.set_title(
+        f'Profile: {profile_id}'
+    )
+
+    ax.legend(
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1)
+    )
+
     plt.tight_layout()
-    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+
+    Path(save_path).parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
     plt.savefig(save_path)
+
     plt.close()
+
     print(f"Saved: {save_path}")
 
 def main():
@@ -315,33 +443,98 @@ def main():
 
     # 5. Per-profile summary chart
     # Build lookup dicts for metrics
-    align_dict = dict(alignment_data)
-    alignment_strength_dict = dict(alignment_strength_data)
-    alignment_strength_shift_dict = dict(
-        alignment_strength_shift_data
+    # for model in models:
+    #     align_dict = dict(alignment_data[model])
+    #     alignment_strength_dict = dict(alignment_strength_data[model])
+    #     alignment_strength_shift_dict = dict(alignment_strength_shift_data[model])
+    #     avg_choice_dict = dict(avg_choice_data[model])
+    #     shift_dict = dict(shift_data[model])
+    #     for profile_id in sort_profiles(df[df['baseline'] == False]['profile_id'].unique()):
+    #         alignment_rate = align_dict.get(profile_id, 0.0)
+    #         alignment_strength = alignment_strength_dict.get(profile_id, 0.0)
+    #         alignment_strength_shift = (
+    #             alignment_strength_shift_dict.get(
+    #                 profile_id,
+    #                 0.0
+    #             )
+    #         )
+    #         avg_choice = avg_choice_dict.get(profile_id, 0.0)
+    #         mean_shift = shift_dict.get(profile_id, 0.0)
+    #         save_path = f"../generated_bar_charts/by_profile/{profile_id}/summary.png"
+    #         plot_profile_summary(
+    #             profile_id,
+    #             alignment_rate,
+    #             alignment_strength,
+    #             alignment_strength_shift,
+    #             avg_choice,
+    #             mean_shift,
+    #             save_path
+    #         )
+
+    profiles = sort_profiles(
+        df[df['baseline'] == False]['profile_id'].unique()
     )
-    avg_choice_dict = dict(avg_choice_data)
-    shift_dict = dict(shift_data)
-    for profile_id in sorted(df[df['baseline'] == False]['profile_id'].unique()):
-        alignment_rate = align_dict.get(profile_id, 0.0)
-        alignment_strength = alignment_strength_dict.get(profile_id, 0.0)
-        alignment_strength_shift = (
-            alignment_strength_shift_dict.get(
-                profile_id,
-                0.0
+
+    for profile_id in profiles:
+
+        profile_data = {}
+
+        for model in models:
+            align_dict = dict(alignment_data[model])
+
+            alignment_strength_dict = dict(
+                alignment_strength_data[model]
             )
+
+            alignment_strength_shift_dict = dict(
+                alignment_strength_shift_data[model]
+            )
+
+            avg_choice_dict = dict(
+                avg_choice_data[model]
+            )
+
+            shift_dict = dict(
+                shift_data[model]
+            )
+
+            profile_data[model] = [
+
+                align_dict.get(
+                    profile_id,
+                    0.0
+                ),
+
+                alignment_strength_dict.get(
+                    profile_id,
+                    0.0
+                ),
+
+                alignment_strength_shift_dict.get(
+                    profile_id,
+                    0.0
+                ),
+
+                avg_choice_dict.get(
+                    profile_id,
+                    0.0
+                ),
+
+                shift_dict.get(
+                    profile_id,
+                    0.0
+                )
+            ]
+
+        save_path = (
+            f"../generated_bar_charts/"
+            f"by_profile/{profile_id}/summary.png"
         )
-        avg_choice = avg_choice_dict.get(profile_id, 0.0)
-        mean_shift = shift_dict.get(profile_id, 0.0)
-        save_path = f"../generated_bar_charts/by_profile/{profile_id}/summary.png"
+
         plot_profile_summary(
-            profile_id,
-            alignment_rate,
-            alignment_strength,
-            alignment_strength_shift,
-            avg_choice,
-            mean_shift,
-            save_path
+            profile_id=profile_id,
+            data=profile_data,
+            save_path=save_path
         )
 
 if __name__ == '__main__':
