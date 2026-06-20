@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from fontTools.cffLib import width
-
 CHOICE_MAP = {
     'A': -2.5,
     'B': -1.5,
@@ -40,6 +38,21 @@ PROFILE_ORDER = [
     "safe_5_act_5",
 ]
 
+METRIC_LIMITS = {
+    "Alignment Rate": (0, 1),
+    "Alignment Strength": (-2.5, 2.5),
+    "Alignment Strength Change": (-5, 5),
+    "Mean Choice Value": (-2.5, 2.5),
+    "Mean Behavioral Shift": (0, 5),
+    "Average Precision Gain": (-1, 1),
+
+    "Align Rate": (0, 1),
+    "Align Strength": (-2.5, 2.5),
+    "Strength Δ": (-5, 5),
+    "Behavior Shift Δ": (0, 5),
+    "Precision Gain": (-1, 1),
+}
+
 def sort_profiles(profile_ids):
     order_map = {
         profile: i
@@ -74,11 +87,11 @@ def compute_alignment_rate(df):
     return res
 
 def compute_alignment_strength(df):
+    # Reuse existing CHOICE_MAP directly:
+    # Negative = more aligned
+    # Positive = more conflicting
 
-    # Reuse existing CHOICE_MAP:
-    # A=+2.5 ... F=-2.5 for alignment strength.
-
-    df['alignment_strength'] = -df['parsed_choice'].map(CHOICE_MAP)
+    df['alignment_strength'] = df['parsed_choice'].map(CHOICE_MAP)
 
     res = []
 
@@ -157,7 +170,7 @@ def compute_behavioral_shift(df):
         mean_abs_shift = merged['shift'].abs().mean()
         shifts.append((profile_id, mean_abs_shift))
     # Include Baseline as 0 shift
-    shifts = [('Baseline', 0.0)] + sorted(shifts, key=lambda x: x[0])
+    shifts = [('Baseline', 0.0)] + shifts
     return shifts
 
 def compute_precision_gain(df):
@@ -181,13 +194,13 @@ def compute_precision_gain(df):
             return (bs - ps) / bs
         merged['gain'] = merged.apply(gain, axis=1)
         merged_valid = merged[~merged['gain'].isna()]
-        total_gain = merged_valid['gain'].sum()
-        gains.append((profile_id, total_gain))
+        average_gain = merged_valid['gain'].mean()
+        gains.append((profile_id, average_gain))
     # Baseline has gain 0
-    gains = [('Baseline', 0.0)] + sorted(gains, key=lambda x: x[0])
+    gains = [('Baseline', 0.0)] + gains
     return gains
 
-def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
+def plot_bar(data, ylabel, title, save_path, figsize=(13, 4)):
     model_names = list(data.keys())
     n_models = len(model_names)
 
@@ -195,7 +208,8 @@ def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
 
     x = np.arange(len(labels))
 
-    total_width = 0.8
+    # Use wide bars but leave more space between profile groups.
+    total_width = 0.80
     bar_width = total_width / n_models
 
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
@@ -219,17 +233,24 @@ def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
         for bar in bars:
             height = bar.get_height()
 
+            if height >= 0:
+                xytext = (0, 3)
+                va = 'bottom'
+            else:
+                xytext = (0, -3)
+                va = 'top'
+
             ax.annotate(
-                f'{height:.1f}',
+                f'{height:.2f}',
                 xy=(
                     bar.get_x() + bar.get_width() / 2,
                     height
                 ),
-                xytext=(0, 3),
+                xytext=xytext,
                 textcoords="offset points",
                 ha='center',
-                va='bottom',
-                fontsize=8
+                va=va,
+                fontsize=6
             )
 
     ax.set_xticks(x)
@@ -237,6 +258,10 @@ def plot_bar(data, ylabel, title, save_path, figsize=(10, 6)):
 
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+
+    if ylabel in METRIC_LIMITS:
+        ymin, ymax = METRIC_LIMITS[ylabel]
+        ax.set_ylim(ymin, ymax)
 
     ax.legend(
         loc='upper left',
@@ -292,11 +317,11 @@ def plot_profile_summary(
     save_path
 ):
     metrics = [
-        'Alignment Rate',
-        'Alignment Strength',
+        'Align Rate',
+        'Align Strength',
         'Strength Δ',
-        'Mean Choice Value',
-        'Mean Abs. Shift'
+        'Behavior Shift Δ',
+        'Precision Gain'
     ]
 
     model_names = list(data.keys())
@@ -334,18 +359,25 @@ def plot_profile_summary(
 
             height = bar.get_height()
 
+            if height >= 0:
+                xytext = (0, 3)
+                va = 'bottom'
+            else:
+                xytext = (0, -3)
+                va = 'top'
+
             ax.annotate(
-                f'{height:.3f}',
+                f'{height:.2f}',
                 xy=(
                     bar.get_x()
                     + bar.get_width() / 2,
                     height
                 ),
-                xytext=(0, 3),
+                xytext=xytext,
                 textcoords="offset points",
                 ha='center',
-                va='bottom',
-                fontsize=7
+                va=va,
+                fontsize=6
             )
 
     ax.set_xticks(x)
@@ -357,6 +389,14 @@ def plot_profile_summary(
 
     ax.set_title(
         f'Profile: {profile_id}'
+    )
+
+    mins = [METRIC_LIMITS[m][0] for m in metrics]
+    maxs = [METRIC_LIMITS[m][1] for m in metrics]
+
+    ax.set_ylim(
+        min(mins),
+        max(maxs)
     )
 
     ax.legend(
@@ -429,7 +469,7 @@ def main():
         model_df = df[df["model"] == model].copy()
         shift_data[model] = compute_behavioral_shift(model_df)
 
-    plot_bar(shift_data, ylabel="Mean Absolute Shift", title="Mean Behavioral Shift from Baseline",
+    plot_bar(shift_data, ylabel="Mean Behavioral Shift", title="Mean Behavioral Shift from Baseline",
              save_path="../generated_bar_charts/by_metric/mean_behavioral_shift.png")
 
     # 4. Precision gain summary by profile
@@ -438,7 +478,7 @@ def main():
         model_df = df[df["model"] == model].copy()
         precision_gain_data[model] = compute_precision_gain(model_df)
 
-    plot_bar(precision_gain_data, ylabel="Total Precision Gain", title="Precision Gain by Profile",
+    plot_bar(precision_gain_data, ylabel="Average Precision Gain", title="Precision Gain by Profile",
              save_path="../generated_bar_charts/by_metric/precision_gain.png")
 
     # 5. Per-profile summary chart
@@ -498,6 +538,10 @@ def main():
                 shift_data[model]
             )
 
+            precision_gain_dict = dict(
+                precision_gain_data[model]
+            )
+
             profile_data[model] = [
 
                 align_dict.get(
@@ -515,12 +559,12 @@ def main():
                     0.0
                 ),
 
-                avg_choice_dict.get(
+                shift_dict.get(
                     profile_id,
                     0.0
                 ),
 
-                shift_dict.get(
+                precision_gain_dict.get(
                     profile_id,
                     0.0
                 )
